@@ -4,6 +4,7 @@ from pathlib import Path
 
 from services.audio_handler import save_audio_file, AudioValidationError
 from services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
+from services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
 
 
 app = FastAPI(
@@ -16,6 +17,7 @@ app = FastAPI(
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 PROCESSED_DIR = UPLOAD_DIR / "processed"
+TRANSCRIPTS_DIR = BASE_DIR / "data" / "transcripts"
 
 @app.get("/")
 def root():
@@ -24,8 +26,11 @@ def root():
 @app.post("/api/v1/audio/upload")
 async def upload_audio(file: UploadFile = File(...)):
     """
-    Accept an uploaded audio file, validate it, and save it,
-    and run preprocessing (normalization + basic noise reduction + conversion).
+    1. Accept an uploaded audio file
+    2. Validate + save original
+    3. Preprocess (normalize, noise reduction, convert to wav 16k mono)
+    4. Run Speech-to-Text on processed audio
+    5. Store transcript (with timestamps) to JSON
     """
     try:
         # 1. Read file bytes from UploadFile
@@ -45,17 +50,34 @@ async def upload_audio(file: UploadFile = File(...)):
             enable_noise_reduction=True,   
         )
 
-        # 4. Return info (later we'll feed processed_path to STT module)
+        # 4. Transcribe audio using STT
+        transcript = transcribe_audio_file(processed_path)
+
+        # 5. Store transcript JSON (text + timestamps)
+        base_name = processed_path.stem  # e.g. "meeting_processed"
+        transcript_path = save_transcript_to_json(
+            transcript=transcript,
+            output_dir=TRANSCRIPTS_DIR,
+            base_name=base_name,
+        )
+
+        # 6. Return info
         return {
-            "message": "Audio uploaded and preprocessed successfully",
+            "message": "Audio uploaded, preprocessed, and transcribed successfully",
             "original_filename": file.filename,
             "saved_path": str(saved_path),
             "processed_path": str(processed_path),
+            "transcript_path": str(transcript_path),
+            "transcript_text": transcript.text,
+            "transcript_segments": [seg.model_dump() for seg in transcript.segments],
         }
+
 
     except AudioValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except AudioPreprocessingError as e:
         raise HTTPException(status_code=500, detail=f"Preprocessing error: {e}")
+    except STTError as e:
+        raise HTTPException(status_code=502, detail=f"STT error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
