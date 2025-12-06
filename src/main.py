@@ -6,6 +6,8 @@ from .services.audio_handler import save_audio_file, AudioValidationError
 from .services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
 from .services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
 from .services.team_loader import load_team, TeamDataError
+from .services.text_preprocessing import preprocess_transcript
+
 
 
 app = FastAPI(
@@ -62,7 +64,10 @@ async def upload_audio(file: UploadFile = File(...)):
             base_name=base_name,
         )
 
-        # 6. Return info
+        # 6. Preprocess transcript text (Task 4.1)
+        preprocessed_sentences = preprocess_transcript(transcript)
+
+        # 7. Return info
         return {
             "message": "Audio uploaded, preprocessed, and transcribed successfully",
             "original_filename": file.filename,
@@ -71,6 +76,9 @@ async def upload_audio(file: UploadFile = File(...)):
             "transcript_path": str(transcript_path),
             "transcript_text": transcript.text,
             "transcript_segments": [seg.model_dump() for seg in transcript.segments],
+            "preprocessed_sentences": [
+                s.model_dump() for s in preprocessed_sentences[:10]  # send first 10 only
+                ],
         }
 
 
