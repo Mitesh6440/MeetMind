@@ -2,9 +2,10 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
-from services.audio_handler import save_audio_file, AudioValidationError
-from services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
-from services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
+from .services.audio_handler import save_audio_file, AudioValidationError
+from .services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
+from .services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
+from .services.team_loader import load_team, TeamDataError
 
 
 app = FastAPI(
@@ -81,3 +82,15 @@ async def upload_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=502, detail=f"STT error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+    
+
+@app.get("/api/v1/team")
+def get_team():
+    try:
+        team = load_team()
+        return {
+            "count": len(team.members),
+            "members": [member.model_dump() for member in team.members],
+        }
+    except TeamDataError as e:
+        raise HTTPException(status_code=500, detail=str(e))
