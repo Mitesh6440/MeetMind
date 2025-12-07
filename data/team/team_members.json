@@ -1,0 +1,40 @@
+{
+    "members": [
+        {
+            "name": "Sakshi",
+            "role": "Frontend Developer",
+            "skills": [
+                "React",
+                "JavaScript",
+                "UI bugs"
+            ]
+        },
+        {
+            "name": "Arjun",
+            "role": "UI/UX Designer",
+            "skills": [
+                "Figma",
+                "Wireframing",
+                "Prototyping"
+            ]
+        },
+        {
+            "name": "Lata",
+            "role": "QA Engineer",
+            "skills": [
+                "Testing",
+                "Automation",
+                "Bug tracking"
+            ]
+        },
+        {
+            "name": "Mohit",
+            "role": "Backend Engineer",
+            "skills": [
+                "Node.js",
+                "Databases",
+                "API design"
+            ]
+        }
+    ]
+}
