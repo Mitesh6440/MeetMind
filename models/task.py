@@ -43,5 +43,8 @@ class Task(BaseModel):
     # Dependencies: list of task IDs this task depends on
     dependencies: List[int] = Field(default_factory=list)
 
-    # Will be filled later by assignment logic:
+    # Assignment information
     assigned_to: Optional[str] = None
+    assignment_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    assignment_reasoning: Optional[str] = None
+    assignment_method: Optional[str] = None  # "explicit", "skill_match", "role_match", "fallback"

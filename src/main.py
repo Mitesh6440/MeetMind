@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+from typing import List
 
 from .services.audio_handler import save_audio_file, AudioValidationError
 from .services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
@@ -12,6 +13,8 @@ from .services.ner import enrich_tasks_with_entities
 from .services.deadline_extraction import enrich_tasks_with_deadlines
 from .services.priority_detection import enrich_tasks_with_priority
 from .services.dependency_extraction import enrich_tasks_with_dependencies
+from .services.task_assignment import assign_all_tasks, validate_assignments, suggest_alternatives
+from .services.skill_matching import enrich_task_with_skills
 
 
 
@@ -87,7 +90,27 @@ async def upload_audio(file: UploadFile = File(...)):
         # 11. Extract dependencies and build dependency graph
         tasks, dependency_graph = enrich_tasks_with_dependencies(tasks, preprocessed_sentences)
         
-        # 12. Return info
+        # 12. Enrich tasks with required skills (if not already done)
+        for task in tasks:
+            if not task.required_skills:
+                enrich_task_with_skills(task)
+        
+        # 13. Assign tasks to team members
+        assignment_results = assign_all_tasks(tasks, preprocessed_sentences)
+        
+        # 14. Apply assignments and populate assignment metadata
+        for result in assignment_results:
+            task = next((t for t in tasks if t.id == result.task_id), None)
+            if task and result.assigned_to:
+                task.assigned_to = result.assigned_to
+                task.assignment_confidence = result.confidence
+                task.assignment_reasoning = result.reasoning
+                task.assignment_method = result.assignment_method
+        
+        # 15. Validate assignments
+        validation_issues = validate_assignments(assignment_results, tasks)
+        
+        # 16. Return info
         return {
             "message": "Audio uploaded, preprocessed, and transcribed successfully",
             "original_filename": file.filename,
@@ -112,6 +135,26 @@ async def upload_audio(file: UploadFile = File(...)):
                 ],
                 "has_cycles": dependency_graph.has_cycles(),
                 "execution_order": dependency_graph.topological_sort() if not dependency_graph.has_cycles() else []
+            },
+            "assignment_summary": {
+                "total_tasks": len(tasks),
+                "assigned_tasks": len([t for t in tasks if t.assigned_to]),
+                "unassigned_tasks": len([t for t in tasks if not t.assigned_to]),
+                "validation_issues": validation_issues,
+                "assignments": [
+                    {
+                        "task_id": result.task_id,
+                        "assigned_to": result.assigned_to,
+                        "confidence": result.confidence,
+                        "method": result.assignment_method,
+                        "reasoning": result.reasoning,
+                        "alternatives": [
+                            {"name": name, "confidence": conf}
+                            for name, conf in result.alternative_assignments
+                        ]
+                    }
+                    for result in assignment_results
+                ]
             }
         }
 
@@ -136,3 +179,55 @@ def get_team():
         }
     except TeamDataError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/tasks/validate")
+def validate_task_assignments(tasks: List[dict]):
+    """
+    Validate task assignments and get suggestions for improvements.
+    """
+    try:
+        from models.task import Task
+        from .services.task_assignment import validate_assignments, suggest_alternatives, AssignmentResult
+        from .services.team_loader import load_team
+        
+        # Convert dicts to Task objects
+        task_objects = [Task(**t) for t in tasks]
+        team = load_team()
+        
+        # Create assignment results from tasks
+        results = []
+        for task in task_objects:
+            result = AssignmentResult(
+                task_id=task.id,
+                assigned_to=task.assigned_to,
+                confidence=task.assignment_confidence or 0.0,
+                assignment_method=task.assignment_method or "unknown",
+                reasoning=task.assignment_reasoning or "",
+                alternative_assignments=[]
+            )
+            results.append(result)
+        
+        # Validate
+        issues = validate_assignments(results, task_objects)
+        
+        # Get suggestions for problematic tasks
+        suggestions = {}
+        for task in task_objects:
+            if task.id in issues.get("unassigned", []) or task.id in issues.get("low_confidence", []):
+                result = next((r for r in results if r.task_id == task.id), None)
+                if result:
+                    suggestions[task.id] = suggest_alternatives(result, team)
+        
+        return {
+            "validation_issues": issues,
+            "suggestions": suggestions,
+            "summary": {
+                "total_tasks": len(task_objects),
+                "unassigned": len(issues.get("unassigned", [])),
+                "low_confidence": len(issues.get("low_confidence", [])),
+                "conflicts": len(issues.get("conflicts", []))
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation error: {e}")
