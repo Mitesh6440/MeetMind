@@ -76,42 +76,42 @@ Task Assignment → Validation → Response
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Frontend (Vanilla JS)                │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │ Upload   │  │ Tasks    │  │ Team     │            │
-│  │ Handler  │  │ Manager  │  │ Manager  │            │
-│  └──────────┘  └──────────┘  └──────────┘            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
+│  │ Upload   │  │ Tasks    │  │ Team     │               │
+│  │ Handler  │  │ Manager  │  │ Manager  │               │
+│  └──────────┘  └──────────┘  └──────────┘               │
 └─────────────────────────────────────────────────────────┘
                           │
                           │ HTTP/REST API
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │              FastAPI Backend (Python)                   │
-│  ┌──────────────────────────────────────────────┐      │
-│  │         Audio Processing Pipeline            │      │
-│  │  1. Audio Handler (Validation & Save)        │      │
-│  │  2. Audio Preprocessing (Normalize, Convert) │      │
-│  │  3. STT Service (Whisper Transcription)      │      │
-│  └──────────────────────────────────────────────┘      │
-│  ┌──────────────────────────────────────────────┐      │
-│  │         NLP Processing Pipeline               │      │
-│  │  1. Text Preprocessing                        │      │
-│  │  2. Task Extraction                           │      │
-│  │  3. Entity Recognition (NER)                  │      │
-│  │  4. Deadline Extraction                       │      │
-│  │  5. Priority Detection                        │      │
-│  │  6. Dependency Extraction                     │      │
-│  │  7. Skill Matching                            │      │
-│  │  8. Task Assignment                           │      │
-│  └──────────────────────────────────────────────┘      │
+│  ┌──────────────────────────────────────────────┐       │
+│  │         Audio Processing Pipeline            │       │
+│  │  1. Audio Handler (Validation & Save)        │       │
+│  │  2. Audio Preprocessing (Normalize, Convert) │       │
+│  │  3. STT Service (Whisper Transcription)      │       │
+│  └──────────────────────────────────────────────┘       │
+│  ┌──────────────────────────────────────────────┐       │
+│  │         NLP Processing Pipeline              │       │
+│  │  1. Text Preprocessing                       │       │
+│  │  2. Task Extraction                          │       │
+│  │  3. Entity Recognition (NER)                 │       │
+│  │  4. Deadline Extraction                      │       │
+│  │  5. Priority Detection                       │       │
+│  │  6. Dependency Extraction                    │       │
+│  │  7. Skill Matching                           │       │
+│  │  8. Task Assignment                          │       │
+│  └──────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    Data Storage                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Audio Files  │  │ Transcripts   │  │ Team Data    │  │
-│  │ (uploads/)    │  │ (JSON)       │  │ (JSON)       │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                    Data Storage                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ Audio Files  │  │ Transcripts  │  │ Team Data    │   │
+│  │ (uploads/)   │  │ (JSON)       │  │ (JSON)       │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
