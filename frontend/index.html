@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetMind - Meeting Task Assignment</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🎯 MeetMind</h1>
+            <p class="subtitle">Intelligent Meeting Task Assignment</p>
+            <div class="header-actions">
+                <button class="btn btn-secondary" id="backToUploadBtn" onclick="goBackToUpload()" style="display: none;">← Upload New File</button>
+                <button class="btn btn-secondary" onclick="showTeamManagement()">👥 Manage Team</button>
+            </div>
+        </header>
+
+        <!-- Team Management Section -->
+        <section class="team-section" id="teamSection" style="display: none;">
+            <div class="team-card">
+                <div class="team-header">
+                    <h2>Team Management</h2>
+                    <button class="btn btn-secondary" onclick="hideTeamManagement()">Close</button>
+                </div>
+                
+                <div class="team-actions">
+                    <button class="btn btn-primary" onclick="showAddMemberForm()">+ Add Team Member</button>
+                </div>
+
+                <div class="team-members-list" id="teamMembersList">
+                    <!-- Team members will be loaded here -->
+                </div>
+
+                <!-- Add/Edit Member Form -->
+                <div class="member-form" id="memberForm" style="display: none;">
+                    <h3 id="memberFormTitle">Add Team Member</h3>
+                    <form id="memberFormElement" onsubmit="handleMemberSubmit(event)">
+                        <div class="form-group">
+                            <label for="memberName">Name *</label>
+                            <input type="text" id="memberName" required minlength="1" placeholder="e.g., John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberRole">Role *</label>
+                            <input type="text" id="memberRole" required placeholder="e.g., Frontend Developer">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberSkills">Skills * (comma-separated)</label>
+                            <input type="text" id="memberSkills" required placeholder="e.g., React, JavaScript, UI bugs">
+                            <small>Separate multiple skills with commas</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                            <button type="button" class="btn btn-secondary" onclick="hideMemberForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Upload Section -->
+        <section class="upload-section" id="uploadSection">
+            <div class="upload-card">
+                <h2>Upload Meeting Audio</h2>
+                <p class="upload-hint">Upload an audio file (.mp3, .wav, .m4a) from your meeting</p>
+                
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="audioFileInput" accept="audio/*" hidden>
+                    <div class="upload-dropzone" id="uploadDropzone">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p>Drag & drop audio file here</p>
+                        <p class="upload-or">or</p>
+                        <button class="btn btn-primary" onclick="document.getElementById('audioFileInput').click()">
+                            Browse Files
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="progress-text" id="progressText">Processing...</p>
+                </div>
+
+                <!-- Processing Status -->
+                <div class="status-container" id="statusContainer" style="display: none;">
+                    <div class="status-item">
+                        <span class="status-icon">✓</span>
+                        <span>Audio uploaded</span>
+                    </div>
+                    <div class="status-item" id="statusPreprocessing">
+                        <span class="status-icon">⏳</span>
+                        <span>Preprocessing audio...</span>
+                    </div>
+                    <div class="status-item" id="statusTranscribing">
+                        <span class="status-icon">⏳</span>
+                        <span>Transcribing...</span>
+                    </div>
+                    <div class="status-item" id="statusExtracting">
+                        <span class="status-icon">⏳</span>
+                        <span>Extracting tasks...</span>
+                    </div>
+                    <div class="status-item" id="statusAssigning">
+                        <span class="status-icon">⏳</span>
+                        <span>Assigning tasks...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection" style="display: none;">
+            <!-- Summary Cards -->
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-icon">📋</div>
+                    <div class="summary-content">
+                        <h3 id="totalTasks">0</h3>
+                        <p>Total Tasks</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">✅</div>
+                    <div class="summary-content">
+                        <h3 id="assignedTasks">0</h3>
+                        <p>Assigned</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">⏰</div>
+                    <div class="summary-content">
+                        <h3 id="tasksWithDeadline">0</h3>
+                        <p>With Deadlines</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">🔴</div>
+                    <div class="summary-content">
+                        <h3 id="criticalTasks">0</h3>
+                        <p>Critical Priority</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label>Priority:</label>
+                    <select id="filterPriority" class="filter-select">
+                        <option value="all">All</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Assignee:</label>
+                    <select id="filterAssignee" class="filter-select">
+                        <option value="all">All</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Status:</label>
+                    <select id="filterStatus" class="filter-select">
+                        <option value="all">All</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="unassigned">Unassigned</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
+            </div>
+
+            <!-- Tasks Grid -->
+            <div class="tasks-grid" id="tasksGrid">
+                <!-- Tasks will be inserted here -->
+            </div>
+
+            <!-- Dependency Graph -->
+            <div class="graph-section" id="graphSection" style="display: none;">
+                <h2>Task Dependencies</h2>
+                <div class="graph-container">
+                    <canvas id="dependencyGraph"></canvas>
+                </div>
+            </div>
+
+            <!-- Transcript Section -->
+            <div class="transcript-section" id="transcriptSection" style="display: none;">
+                <h2>Meeting Transcript</h2>
+                <div class="transcript-content" id="transcriptContent"></div>
+            </div>
+        </section>
+
+        <!-- Task Modal -->
+        <div class="modal" id="taskModal" style="display: none;">
+            <div class="modal-content">
+                <span class="modal-close" onclick="closeTaskModal()">&times;</span>
+                <h2 id="modalTaskTitle">Task Details</h2>
+                <div id="modalTaskContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/upload.js"></script>
+    <script src="js/tasks.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/team.js"></script>
+</body>
+</html>
+
