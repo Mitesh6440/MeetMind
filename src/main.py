@@ -7,6 +7,7 @@ from .services.audio_preprocessing import preprocess_audio_file, AudioPreprocess
 from .services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
 from .services.team_loader import load_team, TeamDataError
 from .services.text_preprocessing import preprocess_transcript
+from .services.task_extraction import extract_tasks_from_sentences
 
 
 
@@ -67,7 +68,10 @@ async def upload_audio(file: UploadFile = File(...)):
         # 6. Preprocess transcript text (Task 4.1)
         preprocessed_sentences = preprocess_transcript(transcript)
 
-        # 7. Return info
+        # 7. Identify task-related sentences (Task 4.2)
+        tasks = extract_tasks_from_sentences(preprocessed_sentences)
+
+        # 8. Return info
         return {
             "message": "Audio uploaded, preprocessed, and transcribed successfully",
             "original_filename": file.filename,
@@ -79,6 +83,7 @@ async def upload_audio(file: UploadFile = File(...)):
             "preprocessed_sentences": [
                 s.model_dump() for s in preprocessed_sentences[:10]  # send first 10 only
                 ],
+            "tasks": [t.model_dump() for t in tasks],
         }
 
 

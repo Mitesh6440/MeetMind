@@ -4,7 +4,7 @@ from typing import List
 import re
 
 from models.nlp import PreprocessedSentence
-from services.stt_service import TranscriptResult
+from .stt_service import TranscriptResult
 
 
 # --- 1. Normalization helpers -------------------------------------------------

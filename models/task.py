@@ -10,6 +10,9 @@ class Task(BaseModel):
     id: int
     description: str = Field(..., min_length=3)
 
+    # Where this task came from in the transcript processing
+    source_sentence_id: Optional[int] = None
+
     # Filled by skill-matching step:
     required_skills: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
