@@ -196,7 +196,9 @@ def extract_task_references(text: str, tasks: List[Task]) -> List[int]:
                 # Try to match by description keywords
                 keywords = match.group(1).strip().split()
                 for task in tasks:
-                    task_desc_norm = _norm(task.description)
+                    # Use full sentence text for better matching
+                    task_text = task.source_sentence_text if task.source_sentence_text else task.description
+                    task_desc_norm = _norm(task_text)
                     # Check if keywords appear in task description
                     if all(kw in task_desc_norm for kw in keywords if len(kw) > 2):
                         if task.id not in referenced_task_ids:
@@ -204,7 +206,9 @@ def extract_task_references(text: str, tasks: List[Task]) -> List[int]:
     
     # 2. Fuzzy matching: look for task descriptions in text
     for task in tasks:
-        task_desc_norm = _norm(task.description)
+        # Use full sentence text for better matching
+        task_text = task.source_sentence_text if task.source_sentence_text else task.description
+        task_desc_norm = _norm(task_text)
         # Extract key words from task description (skip common words)
         task_keywords = [w for w in task_desc_norm.split() if len(w) > 3]
         if len(task_keywords) >= 2:

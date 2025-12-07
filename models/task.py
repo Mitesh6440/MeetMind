@@ -24,6 +24,7 @@ class Task(BaseModel):
 
     # Where this task came from in the transcript processing
     source_sentence_id: Optional[int] = None
+    source_sentence_text: Optional[str] = Field(default=None, description="Full sentence text for processing context")
 
     # Filled by skill-matching step:
     required_skills: List[str] = Field(default_factory=list)

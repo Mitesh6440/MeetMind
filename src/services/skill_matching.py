@@ -200,9 +200,12 @@ def infer_required_skills_from_description(description: str) -> List[str]:
 def enrich_task_with_skills(task: Task) -> Task:
     """
     Take a Task object and fill its required_skills field based on description.
+    Uses source_sentence_text (full sentence) if available for better context.
     Returns the same task (for convenience).
     """
-    task.required_skills = infer_required_skills_from_description(task.description)
+    # Use full sentence text for better skill inference, fallback to description
+    text_for_skills = task.source_sentence_text if task.source_sentence_text else task.description
+    task.required_skills = infer_required_skills_from_description(text_for_skills)
     return task
 
 

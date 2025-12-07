@@ -1,6 +1,8 @@
 .env
+*.md
 /venv
 /data
 __pycache__/
 *.pyc
 /tests
+frontend/

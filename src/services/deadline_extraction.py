@@ -361,4 +361,3 @@ def enrich_tasks_with_deadlines(
             task.deadline = deadline
     
     return tasks
-

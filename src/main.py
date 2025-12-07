@@ -6,7 +6,15 @@ from typing import List
 from .services.audio_handler import save_audio_file, AudioValidationError
 from .services.audio_preprocessing import preprocess_audio_file, AudioPreprocessingError
 from .services.stt_service import transcribe_audio_file,save_transcript_to_json,STTError
-from .services.team_loader import load_team, TeamDataError
+from .services.team_loader import (
+    load_team, 
+    TeamDataError,
+    add_team_member,
+    update_team_member,
+    delete_team_member,
+    save_team_to_json
+)
+from models.team import TeamMember, Team
 from .services.text_preprocessing import preprocess_transcript
 from .services.task_extraction import extract_tasks_from_sentences
 from .services.ner import enrich_tasks_with_entities
@@ -182,6 +190,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @app.get("/api/v1/team")
 def get_team():
+    """Get all team members."""
     try:
         team = load_team()
         return {
@@ -190,6 +199,73 @@ def get_team():
         }
     except TeamDataError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/team/members")
+def create_team_member(member: TeamMember):
+    """Add a new team member."""
+    try:
+        team = add_team_member(member)
+        return {
+            "message": f"Team member '{member.name}' added successfully",
+            "count": len(team.members),
+            "members": [m.model_dump() for m in team.members],
+        }
+    except TeamDataError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add team member: {e}")
+
+
+@app.put("/api/v1/team/members/{member_name}")
+def update_member(member_name: str, updated_member: TeamMember):
+    """Update an existing team member."""
+    try:
+        team = update_team_member(member_name, updated_member)
+        return {
+            "message": f"Team member '{member_name}' updated successfully",
+            "count": len(team.members),
+            "members": [m.model_dump() for m in team.members],
+        }
+    except TeamDataError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update team member: {e}")
+
+
+@app.delete("/api/v1/team/members/{member_name}")
+def delete_member(member_name: str):
+    """Delete a team member."""
+    try:
+        team = delete_team_member(member_name)
+        return {
+            "message": f"Team member '{member_name}' deleted successfully",
+            "count": len(team.members),
+            "members": [m.model_dump() for m in team.members],
+        }
+    except TeamDataError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete team member: {e}")
+
+
+@app.put("/api/v1/team")
+def update_team(team: Team):
+    """Update the entire team (replace all members)."""
+    try:
+        if not team.members:
+            raise HTTPException(status_code=400, detail="Team must have at least one member")
+        
+        save_team_to_json(team)
+        return {
+            "message": "Team updated successfully",
+            "count": len(team.members),
+            "members": [m.model_dump() for m in team.members],
+        }
+    except TeamDataError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update team: {e}")
 
 
 @app.post("/api/v1/tasks/validate")

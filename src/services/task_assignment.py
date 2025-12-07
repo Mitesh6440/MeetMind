@@ -134,15 +134,23 @@ def calculate_skill_match_score(
 def skill_based_assignment(
     task: Task,
     team: Team,
-    skill_matches: List[MemberSkillMatch]
+    skill_matches: List[MemberSkillMatch],
+    workload: Dict[str, WorkloadInfo] = None
 ) -> List[Tuple[str, float, List[str]]]:
     """
     Get skill-based assignment candidates sorted by match score.
+    Includes workload balancing in sorting to break ties.
     
     Returns:
         List of (member_name, confidence, matched_skills) tuples
     """
     candidates = []
+    
+    # Calculate average workload for tie-breaking
+    avg_workload = 0.0
+    if workload and team:
+        total_tasks = sum(w.task_count for w in workload.values())
+        avg_workload = total_tasks / len(team.members) if team.members else 0
     
     for match in skill_matches:
         if match.score > 0:
@@ -151,10 +159,39 @@ def skill_based_assignment(
             # Partial match (0.5) = 0.7 confidence
             # Low match (0.25) = 0.5 confidence
             confidence = min(0.9, 0.5 + (match.score * 0.4))
+            
+            # Adjust for workload (prefer less loaded members when scores are similar)
+            if workload and match.member.name in workload:
+                member_workload = workload[match.member.name].task_count
+                if member_workload < avg_workload:
+                    # Boost confidence slightly for less loaded members
+                    confidence = min(0.95, confidence + 0.05)
+                elif member_workload > avg_workload + 2:
+                    # Reduce confidence for overloaded members
+                    confidence = max(0.1, confidence - 0.1)
+            
+            candidates.append((match.member.name, confidence, match.matched_skills))
+        elif match.score == 0 and not task.required_skills:
+            # If no skills required, include everyone with low confidence
+            # But adjust based on workload
+            confidence = 0.3
+            if workload and match.member.name in workload:
+                member_workload = workload[match.member.name].task_count
+                if member_workload < avg_workload:
+                    confidence = 0.4  # Prefer less loaded
+                elif member_workload > avg_workload + 1:
+                    confidence = 0.2  # Penalize overloaded
             candidates.append((match.member.name, confidence, match.matched_skills))
     
-    # Sort by confidence (highest first)
-    candidates.sort(key=lambda x: x[1], reverse=True)
+    # Sort by confidence (highest first), then by workload (least loaded first) for ties
+    if workload:
+        candidates.sort(key=lambda x: (
+            -x[1],  # Negative for descending confidence
+            workload.get(x[0], WorkloadInfo(x[0], 0, 0, 0)).task_count  # Ascending workload
+        ))
+    else:
+        candidates.sort(key=lambda x: x[1], reverse=True)
+    
     return candidates
 
 
@@ -253,12 +290,14 @@ def adjust_confidence_for_workload(
     member_name: str,
     base_confidence: float,
     workload: Dict[str, WorkloadInfo],
-    task_priority: Optional[str]
+    task_priority: Optional[str],
+    team: Team = None
 ) -> float:
     """
     Adjust assignment confidence based on workload balancing.
     
     Reduces confidence if member is overloaded, especially for low-priority tasks.
+    Also considers relative workload compared to team average.
     """
     if member_name not in workload:
         return base_confidence
@@ -273,9 +312,22 @@ def adjust_confidence_for_workload(
         workload_score += info.critical_tasks * 2
         workload_score += info.high_priority_tasks * 1.5
     
-    # Reduce confidence if overloaded
-    if workload_score > 5:
-        reduction = min(0.2, (workload_score - 5) * 0.05)
+    # Calculate average workload for comparison
+    if team and len(team.members) > 1:
+        total_tasks = sum(w.task_count for w in workload.values())
+        avg_workload = total_tasks / len(team.members)
+        
+        # If this member has significantly more tasks than average, reduce confidence
+        if info.task_count > avg_workload + 1:
+            # Calculate how much more loaded they are
+            overload_ratio = (info.task_count - avg_workload) / max(avg_workload, 1)
+            # Reduce confidence proportionally (more reduction for higher overload)
+            reduction = min(0.4, overload_ratio * 0.15)  # Up to 40% reduction
+            base_confidence = max(0.1, base_confidence - reduction)
+    
+    # Additional reduction if overloaded (absolute threshold)
+    if workload_score > 3:
+        reduction = min(0.3, (workload_score - 3) * 0.1)  # Stronger reduction
         return max(0.1, base_confidence - reduction)
     
     return base_confidence
@@ -324,7 +376,9 @@ def generate_assignment_reasoning(
         reasons.append("High priority task")
     
     # Context-based reasoning
-    if "blocking" in task.description.lower() or "blocking" in str(task.technical_terms).lower():
+    # Use full sentence text for better context checking
+    task_text = task.source_sentence_text if task.source_sentence_text else task.description
+    if "blocking" in task_text.lower() or "blocking" in str(task.technical_terms).lower():
         reasons.append("Blocking issue")
     
     if task.deadline:
@@ -387,15 +441,17 @@ def assign_task(
         explicit = detect_explicit_assignment(task, sentence, team)
         if explicit:
             member_name, confidence = explicit
-            # Adjust for workload
-            confidence = adjust_confidence_for_workload(
-                member_name, confidence, workload, task.priority
-            )
+            # Adjust for workload (but explicit assignments have high priority)
+            # Only reduce if severely overloaded
+            if workload and member_name in workload:
+                info = workload[member_name]
+                if info.task_count > 8:  # Only reduce if very overloaded
+                    confidence = max(0.7, confidence - 0.2)
             reasoning = generate_assignment_reasoning(
                 task, member_name, "explicit", team=team
             )
             # Get alternatives
-            alternatives = skill_based_assignment(task, team, skill_matches)
+            alternatives = skill_based_assignment(task, team, skill_matches, workload)
             alt_list = [(name, conf) for name, conf, _ in alternatives[:3] if name != member_name]
             return AssignmentResult(
                 task_id=task.id,
@@ -407,50 +463,88 @@ def assign_task(
             )
     
     # Priority 2: Skill-based matching
-    skill_candidates = skill_based_assignment(task, team, skill_matches)
+    skill_candidates = skill_based_assignment(task, team, skill_matches, workload)
     if skill_candidates:
-        best_candidate = skill_candidates[0]
-        member_name, base_confidence, matched_skills = best_candidate
-        # Adjust for workload
-        confidence = adjust_confidence_for_workload(
-            member_name, base_confidence, workload, task.priority
-        )
-        reasoning = generate_assignment_reasoning(
-            task, member_name, "skill_match", matched_skills, team
-        )
-        # Get alternatives
-        alt_list = [(name, conf) for name, conf, _ in skill_candidates[1:4]]
-        return AssignmentResult(
-            task_id=task.id,
-            assigned_to=member_name,
-            confidence=confidence,
-            assignment_method="skill_match",
-            reasoning=reasoning,
-            alternative_assignments=alt_list
-        )
+        # Find best candidate considering workload
+        best_candidate = None
+        best_score = -1
+        
+        for candidate in skill_candidates:
+            member_name, base_confidence, matched_skills = candidate
+            # Calculate final score with workload adjustment
+            final_confidence = adjust_confidence_for_workload(
+                member_name, base_confidence, workload, task.priority, team
+            )
+            # Use a composite score: confidence + workload bonus
+            if workload and member_name in workload:
+                member_workload = workload[member_name].task_count
+                # Calculate average workload
+                if team and len(team.members) > 1:
+                    avg_workload = sum(w.task_count for w in workload.values()) / len(team.members)
+                    # Bonus for being less loaded than average
+                    if member_workload < avg_workload:
+                        workload_bonus = (avg_workload - member_workload) * 0.05
+                        final_confidence = min(0.95, final_confidence + workload_bonus)
+            
+            if final_confidence > best_score:
+                best_score = final_confidence
+                best_candidate = (member_name, final_confidence, matched_skills)
+        
+        if best_candidate:
+            member_name, confidence, matched_skills = best_candidate
+            reasoning = generate_assignment_reasoning(
+                task, member_name, "skill_match", matched_skills, team
+            )
+            # Get alternatives (excluding the chosen one)
+            alt_list = [(name, conf) for name, conf, _ in skill_candidates if name != member_name][:3]
+            return AssignmentResult(
+                task_id=task.id,
+                assigned_to=member_name,
+                confidence=confidence,
+                assignment_method="skill_match",
+                reasoning=reasoning,
+                alternative_assignments=alt_list
+            )
     
     # Priority 3: Role-based matching
     role_candidates = role_based_assignment(task, team)
     if role_candidates:
-        best_candidate = role_candidates[0]
-        member_name, base_confidence = best_candidate
-        # Adjust for workload
-        confidence = adjust_confidence_for_workload(
-            member_name, base_confidence, workload, task.priority
-        )
-        reasoning = generate_assignment_reasoning(
-            task, member_name, "role_match", team=team
-        )
-        # Get alternatives
-        alt_list = role_candidates[1:4]
-        return AssignmentResult(
-            task_id=task.id,
-            assigned_to=member_name,
-            confidence=confidence,
-            assignment_method="role_match",
-            reasoning=reasoning,
-            alternative_assignments=alt_list
-        )
+        # Find best candidate considering workload (not just first one)
+        best_candidate = None
+        best_score = -1
+        
+        for member_name, base_confidence in role_candidates:
+            # Adjust for workload
+            confidence = adjust_confidence_for_workload(
+                member_name, base_confidence, workload, task.priority, team
+            )
+            # Add workload bonus/penalty
+            if workload and member_name in workload:
+                member_workload = workload[member_name].task_count
+                if team and len(team.members) > 1:
+                    avg_workload = sum(w.task_count for w in workload.values()) / len(team.members)
+                    if member_workload < avg_workload:
+                        confidence = min(0.95, confidence + 0.05)
+            
+            if confidence > best_score:
+                best_score = confidence
+                best_candidate = (member_name, confidence)
+        
+        if best_candidate:
+            member_name, confidence = best_candidate
+            reasoning = generate_assignment_reasoning(
+                task, member_name, "role_match", team=team
+            )
+            # Get alternatives (excluding the chosen one)
+            alt_list = [(name, conf) for name, conf in role_candidates if name != member_name][:3]
+            return AssignmentResult(
+                task_id=task.id,
+                assigned_to=member_name,
+                confidence=confidence,
+                assignment_method="role_match",
+                reasoning=reasoning,
+                alternative_assignments=alt_list
+            )
     
     # Priority 4: Fallback (least loaded member)
     if team.members:
