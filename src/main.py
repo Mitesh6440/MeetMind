@@ -9,6 +9,9 @@ from .services.team_loader import load_team, TeamDataError
 from .services.text_preprocessing import preprocess_transcript
 from .services.task_extraction import extract_tasks_from_sentences
 from .services.ner import enrich_tasks_with_entities
+from .services.deadline_extraction import enrich_tasks_with_deadlines
+from .services.priority_detection import enrich_tasks_with_priority
+from .services.dependency_extraction import enrich_tasks_with_dependencies
 
 
 
@@ -72,9 +75,19 @@ async def upload_audio(file: UploadFile = File(...)):
         # 7. Identify task-related sentences 
         tasks = extract_tasks_from_sentences(preprocessed_sentences)
 
-        # 8. Enrich task with entites
+        # 8. Enrich task with entities
         tasks = enrich_tasks_with_entities(tasks, preprocessed_sentences)
-        # 8. Return info
+        
+        # 9. Extract and assign deadlines from temporal expressions
+        tasks = enrich_tasks_with_deadlines(tasks, preprocessed_sentences)
+        
+        # 10. Detect and assign priority levels
+        tasks = enrich_tasks_with_priority(tasks, preprocessed_sentences)
+        
+        # 11. Extract dependencies and build dependency graph
+        tasks, dependency_graph = enrich_tasks_with_dependencies(tasks, preprocessed_sentences)
+        
+        # 12. Return info
         return {
             "message": "Audio uploaded, preprocessed, and transcribed successfully",
             "original_filename": file.filename,
@@ -87,6 +100,19 @@ async def upload_audio(file: UploadFile = File(...)):
                 s.model_dump() for s in preprocessed_sentences[:10]  # send first 10 only
                 ],
             "tasks": [t.model_dump() for t in tasks],
+            "dependency_graph": {
+                "edges": [
+                    {
+                        "from_task_id": edge.from_task_id,
+                        "to_task_id": edge.to_task_id,
+                        "dependency_type": edge.dependency_type,
+                        "description": edge.description
+                    }
+                    for edge in dependency_graph.edges
+                ],
+                "has_cycles": dependency_graph.has_cycles(),
+                "execution_order": dependency_graph.topological_sort() if not dependency_graph.has_cycles() else []
+            }
         }
 
 
