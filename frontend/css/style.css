@@ -314,6 +314,31 @@ body {
     border-color: var(--primary-color);
 }
 
+/* View Controls */
+.view-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.view-toggle .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.view-toggle .btn.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
 /* Tasks Grid */
 .tasks-grid {
     display: grid;
@@ -449,6 +474,120 @@ body {
     border-radius: 12px;
     font-size: 0.75rem;
     color: var(--text-secondary);
+}
+
+/* Tasks Table */
+.tasks-table-container {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-lg);
+    margin-bottom: 3rem;
+    overflow-x: auto;
+}
+
+.tasks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.tasks-table thead {
+    background-color: #f9fafb;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tasks-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.tasks-table th:first-child {
+    min-width: 250px;
+}
+
+.tasks-table th:nth-child(2) {
+    min-width: 120px;
+}
+
+.tasks-table th:nth-child(3) {
+    min-width: 150px;
+}
+
+.tasks-table th:nth-child(4) {
+    min-width: 100px;
+}
+
+.tasks-table th:nth-child(5) {
+    min-width: 150px;
+}
+
+.tasks-table th:last-child {
+    min-width: 200px;
+}
+
+.tasks-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: top;
+}
+
+.tasks-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.tasks-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.tasks-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.task-description-cell {
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.task-assignee-cell {
+    font-weight: 500;
+}
+
+.task-assignee-cell.unassigned {
+    color: var(--danger-color);
+    font-style: italic;
+}
+
+.task-deadline-cell {
+    white-space: nowrap;
+}
+
+.task-priority-cell {
+    white-space: nowrap;
+}
+
+.task-dependencies-cell {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.task-reason-cell {
+    max-width: 250px;
+    word-wrap: break-word;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.task-table-row {
+    border-left: 3px solid transparent;
+}
+
+.task-table-row:hover {
+    border-left-color: var(--primary-color);
 }
 
 /* Graph Section */
@@ -670,6 +809,61 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+    .view-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .view-toggle {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tasks-table-container {
+        padding: 1rem;
+        overflow-x: auto;
+    }
+
+    .tasks-table {
+        font-size: 0.75rem;
+    }
+
+    .tasks-table th,
+    .tasks-table td {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .tasks-table th:first-child {
+        min-width: 200px;
+    }
+
+    .tasks-table th:nth-child(2) {
+        min-width: 100px;
+    }
+
+    .tasks-table th:nth-child(3) {
+        min-width: 120px;
+    }
+
+    .tasks-table th:nth-child(4) {
+        min-width: 80px;
+    }
+
+    .tasks-table th:nth-child(5) {
+        min-width: 120px;
+    }
+
+    .tasks-table th:last-child {
+        min-width: 150px;
+    }
+
+    .task-description-cell {
+        max-width: 200px;
+    }
+
+    .task-reason-cell {
+        max-width: 150px;
+    }
     .container {
         padding: 1rem;
     }

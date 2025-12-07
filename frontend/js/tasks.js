@@ -1,6 +1,7 @@
 // Task Management
 let allTasks = [];
 let teamMembers = [];
+let currentView = 'cards'; // 'cards' or 'table'
 
 // Load team members
 async function loadTeamMembers() {
@@ -61,6 +62,15 @@ function applyFilters() {
 
 // Render tasks
 function renderTasks(tasks) {
+    if (currentView === 'table') {
+        renderTasksTable(tasks);
+    } else {
+        renderTasksCards(tasks);
+    }
+}
+
+// Render tasks as cards
+function renderTasksCards(tasks) {
     const tasksGrid = document.getElementById('tasksGrid');
     tasksGrid.innerHTML = '';
 
@@ -73,6 +83,93 @@ function renderTasks(tasks) {
         const taskCard = createTaskCard(task);
         tasksGrid.appendChild(taskCard);
     });
+}
+
+// Render tasks as table
+function renderTasksTable(tasks) {
+    const tableBody = document.getElementById('tasksTableBody');
+    tableBody.innerHTML = '';
+
+    if (tasks.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No tasks found matching the filters.</td></tr>';
+        return;
+    }
+
+    tasks.forEach(task => {
+        const row = createTaskTableRow(task);
+        tableBody.appendChild(row);
+    });
+}
+
+// Create table row for a task
+function createTaskTableRow(task) {
+    const row = document.createElement('tr');
+    row.onclick = () => showTaskModal(task);
+    row.style.cursor = 'pointer';
+    row.className = 'task-table-row';
+
+    // Format deadline
+    let deadlineText = 'Not set';
+    if (task.deadline) {
+        const deadlineDate = new Date(task.deadline);
+        deadlineText = deadlineDate.toLocaleDateString() + ' ' + deadlineDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Format priority
+    const priority = task.priority || 'Not set';
+    const priorityClass = task.priority ? `priority-${task.priority}` : '';
+
+    // Format assigned to
+    const assignedTo = task.assigned_to || 'Unassigned';
+    const assignedClass = task.assigned_to ? '' : 'unassigned';
+
+    // Format dependencies
+    let dependenciesText = 'None';
+    if (task.dependencies && task.dependencies.length > 0) {
+        dependenciesText = task.dependencies.map(dep => `Task ${dep}`).join(', ');
+    }
+
+    // Format reason (assignment reasoning)
+    const reason = task.assignment_reasoning || 'No reasoning provided';
+    const truncatedReason = reason.length > 100 ? reason.substring(0, 100) + '...' : reason;
+
+    row.innerHTML = `
+        <td class="task-description-cell">${escapeHtml(task.description)}</td>
+        <td class="task-assignee-cell ${assignedClass}">${escapeHtml(assignedTo)}</td>
+        <td class="task-deadline-cell">${deadlineText}</td>
+        <td class="task-priority-cell">
+            ${task.priority ? `<span class="task-priority ${priorityClass}">${priority}</span>` : '<span class="task-priority">Not set</span>'}
+        </td>
+        <td class="task-dependencies-cell">${escapeHtml(dependenciesText)}</td>
+        <td class="task-reason-cell" title="${escapeHtml(reason)}">${escapeHtml(truncatedReason)}</td>
+    `;
+
+    return row;
+}
+
+// Switch between card and table view
+function switchView(view) {
+    currentView = view;
+    
+    const tasksGrid = document.getElementById('tasksGrid');
+    const tasksTableContainer = document.getElementById('tasksTableContainer');
+    const cardViewBtn = document.getElementById('cardViewBtn');
+    const tableViewBtn = document.getElementById('tableViewBtn');
+
+    if (view === 'table') {
+        tasksGrid.style.display = 'none';
+        tasksTableContainer.style.display = 'block';
+        cardViewBtn.classList.remove('active');
+        tableViewBtn.classList.add('active');
+    } else {
+        tasksGrid.style.display = 'grid';
+        tasksTableContainer.style.display = 'none';
+        cardViewBtn.classList.add('active');
+        tableViewBtn.classList.remove('active');
+    }
+
+    // Re-render with current filters
+    applyFilters();
 }
 
 // Create task card
@@ -150,6 +247,9 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Make switchView globally accessible
+window.switchView = switchView;
 
 // Initialize filters
 document.addEventListener('DOMContentLoaded', () => {

@@ -151,38 +151,63 @@
                 </div>
             </div>
 
-            <!-- Filters -->
-            <div class="filters-bar">
-                <div class="filter-group">
-                    <label>Priority:</label>
-                    <select id="filterPriority" class="filter-select">
-                        <option value="all">All</option>
-                        <option value="critical">Critical</option>
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
+            <!-- View Toggle and Filters -->
+            <div class="view-controls">
+                <div class="view-toggle">
+                    <button class="btn btn-secondary active" id="cardViewBtn" onclick="switchView('cards')">📋 Cards</button>
+                    <button class="btn btn-secondary" id="tableViewBtn" onclick="switchView('table')">📊 Table</button>
                 </div>
-                <div class="filter-group">
-                    <label>Assignee:</label>
-                    <select id="filterAssignee" class="filter-select">
-                        <option value="all">All</option>
-                    </select>
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Priority:</label>
+                        <select id="filterPriority" class="filter-select">
+                            <option value="all">All</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Assignee:</label>
+                        <select id="filterAssignee" class="filter-select">
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status:</label>
+                        <select id="filterStatus" class="filter-select">
+                            <option value="all">All</option>
+                            <option value="assigned">Assigned</option>
+                            <option value="unassigned">Unassigned</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
                 </div>
-                <div class="filter-group">
-                    <label>Status:</label>
-                    <select id="filterStatus" class="filter-select">
-                        <option value="all">All</option>
-                        <option value="assigned">Assigned</option>
-                        <option value="unassigned">Unassigned</option>
-                    </select>
-                </div>
-                <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
             </div>
 
-            <!-- Tasks Grid -->
+            <!-- Tasks Grid (Card View) -->
             <div class="tasks-grid" id="tasksGrid">
                 <!-- Tasks will be inserted here -->
+            </div>
+
+            <!-- Tasks Table (Table View) -->
+            <div class="tasks-table-container" id="tasksTableContainer" style="display: none;">
+                <table class="tasks-table" id="tasksTable">
+                    <thead>
+                        <tr>
+                            <th>Task Description</th>
+                            <th>Assigned To</th>
+                            <th>Deadline</th>
+                            <th>Priority</th>
+                            <th>Dependencies</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasksTableBody">
+                        <!-- Tasks will be inserted here -->
+                    </tbody>
+                </table>
             </div>
 
             <!-- Dependency Graph -->
