@@ -17,5 +17,10 @@ class Task(BaseModel):
     required_skills: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
 
+    # NER-related info 
+    mentioned_people: List[str] = Field(default_factory=list)
+    technical_terms: List[str] = Field(default_factory=list)
+    time_expressions: List[str] = Field(default_factory=list)
+
     # Will be filled later by assignment logic:
     assigned_to: Optional[str] = None

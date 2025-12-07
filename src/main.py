@@ -8,6 +8,7 @@ from .services.stt_service import transcribe_audio_file,save_transcript_to_json,
 from .services.team_loader import load_team, TeamDataError
 from .services.text_preprocessing import preprocess_transcript
 from .services.task_extraction import extract_tasks_from_sentences
+from .services.ner import enrich_tasks_with_entities
 
 
 
@@ -65,12 +66,14 @@ async def upload_audio(file: UploadFile = File(...)):
             base_name=base_name,
         )
 
-        # 6. Preprocess transcript text (Task 4.1)
+        # 6. Preprocess transcript text 
         preprocessed_sentences = preprocess_transcript(transcript)
 
-        # 7. Identify task-related sentences (Task 4.2)
+        # 7. Identify task-related sentences 
         tasks = extract_tasks_from_sentences(preprocessed_sentences)
 
+        # 8. Enrich task with entites
+        tasks = enrich_tasks_with_entities(tasks, preprocessed_sentences)
         # 8. Return info
         return {
             "message": "Audio uploaded, preprocessed, and transcribed successfully",
