@@ -24,6 +24,15 @@ app = FastAPI(
     description="API to upload meeting audio and process it step by step.",
 )
 
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify actual origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Base path for uploads: <project_root>/data/uploads
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
@@ -99,8 +108,10 @@ async def upload_audio(file: UploadFile = File(...)):
         assignment_results = assign_all_tasks(tasks, preprocessed_sentences)
         
         # 14. Apply assignments and populate assignment metadata
+        # Create lookup dict for O(1) access instead of O(n) search
+        task_lookup = {task.id: task for task in tasks}
         for result in assignment_results:
-            task = next((t for t in tasks if t.id == result.task_id), None)
+            task = task_lookup.get(result.task_id)
             if task and result.assigned_to:
                 task.assigned_to = result.assigned_to
                 task.assignment_confidence = result.confidence

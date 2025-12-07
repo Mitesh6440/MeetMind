@@ -6,6 +6,7 @@ import re
 
 from models.task import Task
 from models.nlp import PreprocessedSentence
+from ..utils.text_utils import normalize_text as _norm
 
 
 class PriorityLevel(str, Enum):
@@ -14,13 +15,6 @@ class PriorityLevel(str, Enum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
-
-
-def _norm(text: str) -> str:
-    """Normalize text for matching."""
-    text = text.lower().strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
 
 
 # --- 1. Priority Keywords -----------------------------------------------------

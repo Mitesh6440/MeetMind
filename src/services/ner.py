@@ -11,15 +11,10 @@ from models.team import Team, TeamMember
 
 from .skill_matching import SKILL_KEYWORDS  # reuse your skill mapping
 from .team_loader import load_team
+from ..utils.text_utils import normalize_text as _norm
 
 
 # --- Helpers ------------------------------------------------------------------
-
-
-def _norm(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
 
 
 # --- 1. PERSON NAMES (team members) ------------------------------------------
@@ -28,31 +23,114 @@ def _norm(text: str) -> str:
 def extract_person_entities_from_sentence(
     sentence: PreprocessedSentence,
     team: Team,
+    context_sentences: List[PreprocessedSentence] = None,
 ) -> List[Entity]:
     """
-    Find mentions of known team members in the sentence.
+    Find mentions of known team members in the sentence and surrounding context.
     We only care about your project team, not arbitrary names.
+    
+    Args:
+        sentence: The sentence to search in
+        team: Team object with member names
+        context_sentences: Optional list of surrounding sentences for context
     """
-    text_norm = _norm(sentence.raw_text)
     entities: List[Entity] = []
+    
+    # Search in both raw_text and cleaned_text
+    texts_to_search = [
+        sentence.raw_text,
+        sentence.cleaned_text,
+    ]
+    
+    # Add context sentences if provided
+    if context_sentences:
+        for ctx_sent in context_sentences:
+            texts_to_search.extend([ctx_sent.raw_text, ctx_sent.cleaned_text])
 
     for member in team.members:
         name = member.name
         name_norm = _norm(name)
+        name_parts = name_norm.split()  # Handle multi-word names
+        
+        # Skip if name is too short (likely false positive)
+        if len(name_norm) < 2:
+            continue
 
-        # Simple substring search (case-insensitive)
-        idx = text_norm.find(name_norm)
-        if idx != -1:
-            entities.append(
-                Entity(
-                    text=name,
-                    type=EntityType.PERSON,
-                    start_char=idx,
-                    end_char=idx + len(name_norm),
+        for text in texts_to_search:
+            if not text:
+                continue
+                
+            text_norm = _norm(text)
+            
+            # Method 1: Exact word boundary match (most reliable)
+            # Use regex to find whole word matches
+            pattern = r"\b" + re.escape(name_norm) + r"\b"
+            matches = list(re.finditer(pattern, text_norm))
+            
+            for match in matches:
+                entities.append(
+                    Entity(
+                        text=name,
+                        type=EntityType.PERSON,
+                        start_char=match.start(),
+                        end_char=match.end(),
+                    )
                 )
-            )
+            
+            # Method 2: If no word boundary match, try substring but verify it's a word
+            if not matches and name_norm in text_norm:
+                idx = text_norm.find(name_norm)
+                # Verify it's not part of another word
+                if idx > 0:
+                    char_before = text_norm[idx - 1]
+                    if char_before.isalnum():
+                        continue  # Part of another word
+                if idx + len(name_norm) < len(text_norm):
+                    char_after = text_norm[idx + len(name_norm)]
+                    if char_after.isalnum():
+                        continue  # Part of another word
+                
+                # It's a standalone word/phrase
+                entities.append(
+                    Entity(
+                        text=name,
+                        type=EntityType.PERSON,
+                        start_char=idx,
+                        end_char=idx + len(name_norm),
+                    )
+                )
+            
+            # Method 3: For multi-word names, check if all parts appear together
+            if len(name_parts) > 1:
+                # Check if all parts appear in sequence
+                pattern_parts = r"\b" + r"\s+".join([re.escape(part) for part in name_parts]) + r"\b"
+                matches_parts = list(re.finditer(pattern_parts, text_norm))
+                for match in matches_parts:
+                    # Avoid duplicates
+                    if not any(e.text == name and e.start_char == match.start() for e in entities):
+                        entities.append(
+                            Entity(
+                                text=name,
+                                type=EntityType.PERSON,
+                                start_char=match.start(),
+                                end_char=match.end(),
+                            )
+                        )
+            
+            # If we found the name, no need to search in other texts
+            if entities and any(e.text == name for e in entities):
+                break
 
-    return entities
+    # Deduplicate entities
+    unique_entities = []
+    seen = set()
+    for ent in entities:
+        key = (ent.type, ent.text, ent.start_char)
+        if key not in seen:
+            seen.add(key)
+            unique_entities.append(ent)
+
+    return unique_entities
 
 
 # --- 2. TECHNICAL TERMS (login bug, database, API, etc.) ---------------------
@@ -245,8 +323,9 @@ def extract_time_entities_from_sentence(
 def extract_entities_for_sentence(
     sentence: PreprocessedSentence,
     team: Team,
+    context_sentences: List[PreprocessedSentence] = None,
 ) -> List[Entity]:
-    persons = extract_person_entities_from_sentence(sentence, team)
+    persons = extract_person_entities_from_sentence(sentence, team, context_sentences)
     techs = extract_technical_entities_from_sentence(sentence)
     times = extract_time_entities_from_sentence(sentence)
     return persons + techs + times
@@ -261,11 +340,14 @@ def enrich_tasks_with_entities(
     team: Team | None = None,
 ) -> List[Task]:
     """
-    For each Task, find the corresponding source sentence and
-    populate:
+    For each Task, find the corresponding source sentence and surrounding context,
+    then populate:
         - mentioned_people
         - technical_terms
         - time_expressions
+    
+    This function also searches surrounding sentences for person mentions,
+    as names are often mentioned in adjacent sentences.
     """
     # If team not provided, load from default JSON
     if team is None:
@@ -273,6 +355,9 @@ def enrich_tasks_with_entities(
 
     # Create a lookup from sentence id -> sentence
     sentence_map = {s.id: s for s in sentences}
+    
+    # Create sentence list for context lookup
+    sentence_list = sorted(sentences, key=lambda s: s.id)
 
     for task in tasks:
         if task.source_sentence_id is None:
@@ -282,8 +367,21 @@ def enrich_tasks_with_entities(
         if not sent:
             continue
 
-        entities = extract_entities_for_sentence(sent, team)
+        # Get surrounding sentences for context (names often mentioned nearby)
+        context_sentences = []
+        sent_idx = next((i for i, s in enumerate(sentence_list) if s.id == sent.id), -1)
+        if sent_idx >= 0:
+            # Get 2 sentences before and 2 after for context
+            start_idx = max(0, sent_idx - 2)
+            end_idx = min(len(sentence_list), sent_idx + 3)
+            context_sentences = sentence_list[start_idx:end_idx]
+            # Remove the main sentence from context (already included)
+            context_sentences = [s for s in context_sentences if s.id != sent.id]
 
+        entities = extract_entities_for_sentence(sent, team, context_sentences)
+
+        # If no people found in immediate context, search broader context
+        # (names might be mentioned earlier in the conversation)
         people = []
         tech_terms = []
         time_exprs = []
@@ -298,6 +396,17 @@ def enrich_tasks_with_entities(
             elif ent.type == EntityType.TIME:
                 if ent.text not in time_exprs:
                     time_exprs.append(ent.text)
+        
+        # Fallback: If no people found, search in broader context (up to 10 sentences before)
+        if not people and sent_idx >= 0:
+            broader_context = sentence_list[max(0, sent_idx - 10):sent_idx]
+            if broader_context:
+                broader_entities = extract_person_entities_from_sentence(
+                    sent, team, broader_context
+                )
+                for ent in broader_entities:
+                    if ent.text not in people:
+                        people.append(ent.text)
 
         task.mentioned_people = people
         task.technical_terms = tech_terms

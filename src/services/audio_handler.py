@@ -88,5 +88,4 @@ def save_audio_file(original_filename : str , file_bytes : float , upload_dir : 
 
     # 4. Save bytes to file
     file_path.write_bytes(file_bytes)
-    print(file_path)
     return file_path

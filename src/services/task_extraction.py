@@ -5,64 +5,35 @@ import re
 
 from models.task import Task
 from models.nlp import PreprocessedSentence
+from ..utils.text_utils import normalize_text
 
 
 # --- 1. Patterns & keyword lists ---------------------------------------------
 
 # Imperative / action verbs common in tech meetings
 ACTION_VERBS = [
-    "fix",
-    "update",
-    "design",
-    "implement",
-    "create",
-    "write",
-    "test",
-    "refactor",
-    "review",
-    "deploy",
-    "configure",
-    "set up",
-    "setup",
-    "optimize",
-    "add",
-    "remove",
-    "check",
-    "investigate",
-    "analyze",
-    "resolve",
-    "handle",
+    "fix", "update", "design", "implement", "create", "write", "test",
+    "refactor", "review", "deploy", "configure", "set up", "setup",
+    "optimize", "add", "remove", "check", "investigate", "analyze",
+    "resolve", "handle", "build", "develop", "install", "integrate",
+    "modify", "improve", "enhance", "debug", "troubleshoot", "verify",
+    "validate", "document", "prepare", "organize", "schedule", "plan",
 ]
 
 # Phrases that often indicate action items
 ACTION_PHRASES = [
-    "need to",
-    "should",
-    "must",
-    "let's",
-    "lets",
-    "have to",
-    "we will",
-    "we'll",
-    "plan to",
-    "make sure to",
-    "ensure that",
+    "need to", "should", "must", "let's", "lets", "have to",
+    "we will", "we'll", "i will", "i'll", "going to", "gonna",
+    "plan to", "make sure to", "ensure that", "make sure",
+    "will need", "would need", "could", "might need",
 ]
 
 # Phrases that *often* indicate decisions / summary rather than tasks
 NON_TASK_HINTS = [
-    "we discussed",
-    "we talked about",
-    "we already",
-    "as we know",
-    "remember that",
+    "we discussed", "we talked about", "we already", "as we know",
+    "remember that", "we decided", "we agreed", "we concluded",
+    "it was", "it is", "that was", "this is", "we have",
 ]
-
-
-def _norm(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
 
 
 # --- 2. Decide if a sentence is task-like ------------------------------------
@@ -72,17 +43,19 @@ def is_task_sentence(sent: PreprocessedSentence) -> bool:
     """
     Heuristic check if a sentence sounds like an action item / task.
 
-    Uses:
+    Uses multiple strategies:
     - Leading imperative verbs ("Fix the login bug", "Update the API")
     - Modal phrases ("We need to deploy", "You should test")
-    - Avoids some non-task summary phrases
+    - Action verbs anywhere in sentence with context
+    - Avoids non-task summary phrases
     """
-    cleaned = _norm(sent.cleaned_text)
+    cleaned = normalize_text(sent.cleaned_text)
     if not cleaned:
         return False
 
     # Quick rejection: if sentence is extremely short
-    if len(cleaned.split()) < 3:
+    words = cleaned.split()
+    if len(words) < 3:
         return False
 
     # Rule 0: avoid obvious non-task sentences
@@ -90,29 +63,66 @@ def is_task_sentence(sent: PreprocessedSentence) -> bool:
         if phrase in cleaned:
             return False
 
-    tokens = cleaned.split()
-
     # Rule 1: starts with an action verb ("fix the bug", "update the UI")
-    first_two = " ".join(tokens[:2])
+    first_word = words[0] if words else ""
+    first_two = " ".join(words[:2]) if len(words) >= 2 else ""
+    first_three = " ".join(words[:3]) if len(words) >= 3 else ""
+    
     for verb in ACTION_VERBS:
-        # Check "fix" and "set up" type verbs
-        if cleaned.startswith(verb + " ") or first_two.startswith(verb + " "):
-            return True
+        verb_words = verb.split()
+        # Single word verbs
+        if len(verb_words) == 1:
+            if first_word == verb or cleaned.startswith(verb + " "):
+                return True
+        # Multi-word verbs (e.g., "set up")
+        elif len(verb_words) == 2:
+            if first_two == verb or cleaned.startswith(verb + " "):
+                return True
 
-    # Rule 2: contains action phrases like "need to", "should", etc.
+    # Rule 2: contains action phrases with verification
     for phrase in ACTION_PHRASES:
         if phrase in cleaned:
-            # Also make sure there's a verb-ish word after it
-            # e.g., "need to fix", "should update", "must design"
+            # Verify there's an action verb after the phrase
+            phrase_idx = cleaned.find(phrase)
+            text_after_phrase = cleaned[phrase_idx + len(phrase):].strip()
+            
+            # Check if any action verb appears after the phrase
+            for verb in ACTION_VERBS:
+                verb_words = verb.split()
+                if len(verb_words) == 1:
+                    if text_after_phrase.startswith(verb) or f" {verb} " in text_after_phrase:
+                        return True
+                elif len(verb_words) == 2:
+                    if text_after_phrase.startswith(verb) or verb in text_after_phrase:
+                        return True
+            
+            # If phrase is at start and sentence is action-oriented, accept it
+            if phrase_idx < 10:  # Phrase near the start
+                return True
+
+    # Rule 3: Question-style assignments ("Can you ...", "Will you ...")
+    question_patterns = [
+        r"^(can|will|could|would)\s+you\s+",
+        r"^(please|kindly)\s+",
+    ]
+    for pattern in question_patterns:
+        if re.match(pattern, cleaned):
             return True
 
-    # Rule 3: "Can you ...", "Will you ..." style
-    if cleaned.startswith("can you ") or cleaned.startswith("will you "):
+    # Rule 4: "Let's ..." or "We should ..." style
+    if cleaned.startswith(("let's ", "lets ", "we should ", "we need ", "we must ")):
         return True
 
-    # Rule 4: "Let's ..." tasks
-    if cleaned.startswith("let's ") or cleaned.startswith("lets "):
-        return True
+    # Rule 5: Action verb appears anywhere with task context
+    # Look for action verbs that aren't at the start but have task indicators
+    for verb in ACTION_VERBS:
+        if verb in cleaned:
+            verb_idx = cleaned.find(verb)
+            # Check if verb is preceded by task indicators
+            before_verb = cleaned[max(0, verb_idx - 20):verb_idx]
+            task_indicators = ["need", "should", "must", "will", "going to", "plan"]
+            if any(indicator in before_verb for indicator in task_indicators):
+                return True
 
     return False
 

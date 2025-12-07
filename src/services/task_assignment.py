@@ -7,6 +7,7 @@ import re
 from models.task import Task
 from models.team import Team, TeamMember
 from models.nlp import PreprocessedSentence
+from ..utils.text_utils import normalize_text as _norm
 from .skill_matching import (
     enrich_task_with_skills,
     match_team_members_for_task,
@@ -19,13 +20,6 @@ from .team_loader import load_team
 class AssignmentError(Exception):
     """Custom exception for assignment errors."""
     pass
-
-
-def _norm(text: str) -> str:
-    """Normalize text for matching."""
-    text = text.lower().strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
 
 
 # --- 1. Assignment Result Data Structures -------------------------------------

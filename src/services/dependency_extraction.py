@@ -6,18 +6,12 @@ from dataclasses import dataclass
 
 from models.task import Task
 from models.nlp import PreprocessedSentence
+from ..utils.text_utils import normalize_text as _norm
 
 
 class DependencyError(Exception):
     """Custom exception for dependency extraction errors."""
     pass
-
-
-def _norm(text: str) -> str:
-    """Normalize text for matching."""
-    text = text.lower().strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
 
 
 # --- 1. Dependency Keywords and Patterns --------------------------------------

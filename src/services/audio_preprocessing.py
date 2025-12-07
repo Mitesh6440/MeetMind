@@ -20,16 +20,22 @@ def load_audio(input_path : Path) -> AudioSegment:
     pydub uses ffmpeg under the hood, so ffmpeg must be installed.
     """
 
-    # Set ffmpeg paths explicitly
-    ffmpeg_path = r"D:\DOWNLOAD\ffmpeg-8.0.1-essentials_build\ffmpeg-8.0.1-essentials_build\bin"
+    # Try to find ffmpeg in system PATH first
+    ffmpeg_exe = which("ffmpeg")
+    ffprobe_exe = which("ffprobe")
     
-    # Add to system PATH for this process
-    if ffmpeg_path not in os.environ["PATH"]:
-        os.environ["PATH"] = ffmpeg_path + os.pathsep + os.environ["PATH"]
+    # If not in PATH, try common installation locations (configurable via env var)
+    if not ffmpeg_exe:
+        ffmpeg_path = os.environ.get("FFMPEG_PATH", "")
+        if ffmpeg_path and os.path.exists(ffmpeg_path):
+            ffmpeg_exe = os.path.join(ffmpeg_path, "ffmpeg.exe")
+            ffprobe_exe = os.path.join(ffmpeg_path, "ffprobe.exe")
     
-    # Also set pydub's converter explicitly
-    AudioSegment.converter = os.path.join(ffmpeg_path, "ffmpeg.exe")
-    AudioSegment.ffprobe = os.path.join(ffmpeg_path, "ffprobe.exe")
+    # Set pydub's converter if found
+    if ffmpeg_exe and os.path.exists(ffmpeg_exe):
+        AudioSegment.converter = ffmpeg_exe
+    if ffprobe_exe and os.path.exists(ffprobe_exe):
+        AudioSegment.ffprobe = ffprobe_exe
     
     if not input_path.exists():
         raise AudioPreprocessingError(f"Input file not found: {input_path}")
